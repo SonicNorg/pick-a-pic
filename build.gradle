@@ -1,0 +1,81 @@
+import java.time.LocalDateTime
+
+buildscript {
+    apply from: 'versions.gradle'
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+}
+
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.3.41'
+    id"com.github.johnrengelman.shadow" version "5.2.0"
+}
+
+group 'name.nepavel'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+configurations {
+    compileKotlin {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
+}
+
+dependencies {
+    compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+    compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    compile "org.jetbrains.kotlinx:kotlinx-html-jvm:${versions.kotlinx_version}"
+    compile "org.telegram:telegrambots-abilities:${versions.telegram}"
+
+    compile group: 'org.apache.poi', name: 'poi-ooxml', version: '4.1.1' //work with xlsx
+
+    compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+    implementation "com.sksamuel.hoplite:hoplite-core:${versions.hoplite}" //to read properties
+    implementation "com.sksamuel.hoplite:hoplite-yaml:${versions.hoplite}" //to read yaml-properties
+
+    // DB
+    compile "com.zaxxer:HikariCP:${versions.hikari}"
+    compile "com.h2database:h2:${versions.h2}"
+    compile "org.jetbrains.exposed:exposed-core:${versions.exposed}"
+    compile "org.jetbrains.exposed:exposed-dao:${versions.exposed}"
+    compile "org.jetbrains.exposed:exposed-jdbc:${versions.exposed}"
+    compile "org.jetbrains.exposed:exposed-java-time:${versions.exposed}"
+    compile "org.flywaydb:flyway-core:${versions.flyway}"
+
+    //JDBC driver
+    compile "org.postgresql:postgresql:${versions.postgresql}"
+
+
+    testCompile "junit:junit:${versions.junit}"
+    testCompile "org.mockito:mockito-core:${versions.mockito}"
+    testCompile "org.powermock:powermock-module-junit4:${versions.powermock}"
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+processResources {
+    filter org.apache.tools.ant.filters.ReplaceTokens, tokens: [
+            "project.version": project.version,
+            "buildDate": LocalDateTime.now().toString()
+    ]
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'name.nepavel.otus.otus_teachers_bot.MainKt'
+    }
+}
