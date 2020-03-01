@@ -178,7 +178,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                             )
                             currentVoting.state != State.STARTED -> execute(
                                 AnswerCallbackQuery()
-                                    .setText("Started vote '${currentVoting.name}' not found!")
+                                    .setText("Started voting '${currentVoting.name}' not found! Choose STARTED voting.")
                                     .setCallbackQueryId(callbackQuery.id)
                                     .setShowAlert(true)
                             )
