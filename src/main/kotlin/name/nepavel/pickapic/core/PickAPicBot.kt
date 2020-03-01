@@ -92,10 +92,17 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
             .action { ctx ->
                 val chosen = UserCurrentVoteRepository.get(ctx.chatId())
                 if (chosen != null) {
-                    PicRepository.list(chosen).sortedByDescending { it.rank }.map {
-                        InputMediaPhoto(it.file_id, round(it.rank).toInt().toString())
-                    }.chunked(8).forEach {
-                        execute(SendMediaGroup(ctx.chatId(), it))
+                    if (!(VotingRepository.get(chosen).state == State.CLOSED
+                                || admins().contains(ctx.chatId().toInt())
+                                || creatorId() == ctx.chatId().toInt())
+                    ) {
+                        silent.send("Voting $chosen is in progress, ranks are unavailable.", ctx.chatId())
+                    } else {
+                        PicRepository.list(chosen).sortedByDescending { it.rank }.map {
+                            InputMediaPhoto(it.file_id, round(it.rank).toInt().toString())
+                        }.chunked(8).forEach {
+                            execute(SendMediaGroup(ctx.chatId(), it))
+                        }
                     }
                 } else {
                     silent.send("Choose voting first!", ctx.chatId())
