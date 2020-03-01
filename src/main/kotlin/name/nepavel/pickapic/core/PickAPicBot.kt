@@ -17,6 +17,8 @@ import org.telegram.abilitybots.api.objects.Privacy
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery
 import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
@@ -198,6 +200,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                 sendPicsToVote(ctx.chatId(), currentVoting.name)
                             }
                         }
+                        execute(DeleteMessage(ctx.chatId(), callbackQuery.message.messageId))
                     }
                     ctx.update().hasMessage() && ctx.update().message.hasText() -> {
                         val text = ctx.update().message.text
