@@ -18,7 +18,6 @@ import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery
 import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
@@ -281,7 +280,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
     }
 
     private fun sendPicsToVote(chatId: Long, currentVoting: String) {
-        val (left, right) = nextTwo(currentVoting)
+        val (left, right) = nextTwo(currentVoting, chatId)
         execute(
             SendMediaGroup(
                 chatId, listOf(
@@ -314,8 +313,17 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
         }
     }
 
-    private fun nextTwo(voting: String): Pair<Pic, Pic> {
-        return PicRepository.list(voting).sortedBy { it.rank }.chunked(2).map { it[0] to it[1] }.random()
+    private fun nextTwo(voting: String, chatId: Long): Pair<Pic, Pic> {
+        val closest = db.getMap<Long, Boolean>("CLOSEST").getOrDefault(chatId, false)
+        return if (closest)
+            PicRepository.list(voting).sortedBy { it.rank }.chunked(2) { it[0] to it[1] }.random()
+        else {
+            val evens = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, pic -> index % 2 == 1 }
+            val odds = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, pic -> index % 2 == 0 }
+            evens.zip(odds).random()
+        }.also {
+            db.getMap<Long, Boolean>("CLOSEST")[chatId] = !closest
+        }
     }
 
     private fun mergeImages(left: InputStream, right: InputStream): InputStream {
