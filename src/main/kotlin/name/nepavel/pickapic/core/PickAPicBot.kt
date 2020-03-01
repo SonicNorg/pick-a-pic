@@ -1,7 +1,7 @@
 package name.nepavel.pickapic.core
 
 import name.nepavel.pickapic.Config
-import name.nepavel.pickapic.GFG.EloRating
+import name.nepavel.pickapic.GFG.eloRating
 import name.nepavel.pickapic.domain.Pic
 import name.nepavel.pickapic.domain.State
 import name.nepavel.pickapic.domain.Voting
@@ -194,11 +194,10 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                 val (winnerHash, loserHash) = callbackQuery.data.split("|", limit = 2)
                                 val winner = PicRepository.get(currentVoting.name, winnerHash.toInt())
                                 val loser = PicRepository.get(currentVoting.name, loserHash.toInt())
-                                val (winnerRating, loserRating) = EloRating(
+                                val (winnerRating, loserRating) = eloRating(
                                     winner.rank,
                                     loser.rank,
-                                    Config.config.logic.coefficient,
-                                    true
+                                    Config.config.logic.coefficient
                                 )
                                 PicRepository.save(currentVoting.name, winner.copy(rank = winnerRating.toFloat()))
                                 PicRepository.save(currentVoting.name, loser.copy(rank = loserRating.toFloat()))
@@ -325,8 +324,8 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
         return if (closest)
             PicRepository.list(voting).sortedBy { it.rank }.chunked(2) { it[0] to it[1] }.random()
         else {
-            val evens = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, pic -> index % 2 == 1 }
-            val odds = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, pic -> index % 2 == 0 }
+            val evens = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, _ -> index % 2 == 1 }
+            val odds = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, _ -> index % 2 == 0 }
             evens.zip(odds).random()
         }.also {
             db.getMap<Long, Boolean>("CLOSEST")[chatId] = !closest

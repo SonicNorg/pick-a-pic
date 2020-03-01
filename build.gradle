@@ -76,6 +76,6 @@ processResources {
 
 jar {
     manifest {
-        attributes 'Main-Class': 'name.nepavel.otus.otus_teachers_bot.MainKt'
+        attributes 'Main-Class': 'name.nepavel.pickapic.MainKt'
     }
 }
