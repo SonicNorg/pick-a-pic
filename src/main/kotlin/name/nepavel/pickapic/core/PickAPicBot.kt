@@ -126,7 +126,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                         silent.send("Voting $chosen is in progress, ranks are unavailable.", ctx.chatId())
                     } else {
                         PicRepository.list(chosen).sortedByDescending { it.rank }.map {
-                            InputMediaPhoto(it.file_id, round(it.rank).toInt().toString())
+                            InputMediaPhoto(it.file_id, "%.1f".format(it.rank))
                         }.chunked(8).forEach {
                             execute(SendMediaGroup(ctx.chatId(), it))
                         }
