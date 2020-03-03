@@ -7,6 +7,7 @@ import name.nepavel.pickapic.domain.State
 import name.nepavel.pickapic.domain.Voting
 import name.nepavel.pickapic.repository.PicRepository
 import name.nepavel.pickapic.repository.UserCurrentVoteRepository
+import name.nepavel.pickapic.repository.ViewsRepository
 import name.nepavel.pickapic.repository.VotingRepository
 import org.apache.logging.log4j.LogManager
 import org.telegram.abilitybots.api.bot.AbilityBot
@@ -52,6 +53,8 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
         PicRepository.db = db
         VotingRepository.db = db
         UserCurrentVoteRepository.db = db
+        ViewsRepository.db = db
+        PairManager.db = db
     }
 
     override fun creatorId(): Int = 141897089
@@ -217,8 +220,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                     SendMessage(
                                         ctx.chatId(),
                                         "Voting '$closed' closed, results become available for all."
-                                    )
-                                        .setReplyMarkup(votingButtons)
+                                    ).setReplyMarkup(votingButtons)
                                 )
                             }
                             text.startsWith("Choose") -> {
@@ -232,12 +234,20 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                         ).size} pics. ${if (chosenVoting.state == State.STARTED) "Go on" else "See /ranks"}!"
                                     )
                                         .setReplyMarkup(votingButtons.also {
-                                            if ((admins().contains(ctx.chatId().toInt()) || creatorId() == ctx.chatId().toInt())
+                                            if ((admins().contains(ctx.chatId().toInt())
+                                                        || creatorId() == ctx.chatId().toInt())
                                                 && chosenVoting.state == State.CREATED
-                                            )
+                                            ) {
                                                 it.keyboard.add(
                                                     0,
                                                     KeyboardRow().also { it.add("Start voting") })
+                                            } else if ((admins().contains(ctx.chatId().toInt())
+                                                        || creatorId() == ctx.chatId().toInt())
+                                                && chosenVoting.state == State.STARTED) {
+                                                it.keyboard.add(
+                                                    0,
+                                                    KeyboardRow().also { it.add("Close voting") })
+                                            }
                                         })
                                 )
                                 if (chosenVoting.state == State.STARTED) {
@@ -286,12 +296,33 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
     }
 
     private fun sendPicsToVote(chatId: Long, currentVoting: String) {
-        val (left, right) = nextTwo(currentVoting, chatId)
+        val nextPair = PairManager.getNextPair(chatId, currentVoting)
+        if (nextPair == null) {
+            execute(
+                SendMessage(chatId, "You are done! Thank you!")
+                    .setReplyMarkup(
+                        votingButtons.also {
+                            if (admins().contains(chatId.toInt()) || creatorId() == chatId.toInt()) {
+                                if (VotingRepository.get(currentVoting).state == State.STARTED) {
+                                    it.keyboard.add(
+                                        0,
+                                        KeyboardRow().also { it.add("Close voting") })
+                                } else if (VotingRepository.get(currentVoting).state == State.CREATED) {
+                                    it.keyboard.add(
+                                        0,
+                                        KeyboardRow().also { it.add("Start voting") })
+                                }
+                            }
+                        }
+                    )
+            )
+            return
+        }
         execute(
             SendMediaGroup(
                 chatId, listOf(
-                    InputMediaPhoto(left.file_id, "left"),
-                    InputMediaPhoto(right.file_id, "right")
+                    InputMediaPhoto(nextPair.first.file_id, "left"),
+                    InputMediaPhoto(nextPair.second.file_id, "right")
                 )
             )
         )
@@ -301,8 +332,8 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                     replyMarkup = InlineKeyboardMarkup(
                         listOf(
                             listOf(
-                                InlineKeyboardButton("\uD83D\uDC4D LEFT").setCallbackData("${left.hashCode()}|${right.hashCode()}"),
-                                InlineKeyboardButton("RIGHT \uD83D\uDC4D").setCallbackData("${right.hashCode()}|${left.hashCode()}")
+                                InlineKeyboardButton("\uD83D\uDC4D LEFT").setCallbackData("${nextPair.first.hashCode()}|${nextPair.second.hashCode()}"),
+                                InlineKeyboardButton("RIGHT \uD83D\uDC4D").setCallbackData("${nextPair.second.hashCode()}|${nextPair.first.hashCode()}")
                             )
                         )
                     )
@@ -316,19 +347,6 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
             log.error("{}", e.apiResponse, e)
         } catch (e: Exception) {
             log.error("", e)
-        }
-    }
-
-    private fun nextTwo(voting: String, chatId: Long): Pair<Pic, Pic> {
-        val closest = db.getMap<Long, Boolean>("CLOSEST").getOrDefault(chatId, false)
-        return if (closest)
-            PicRepository.list(voting).sortedBy { it.rank }.chunked(2) { it[0] to it[1] }.random()
-        else {
-            val evens = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, _ -> index % 2 == 1 }
-            val odds = PicRepository.list(voting).sortedBy { it.rank }.filterIndexed { index, _ -> index % 2 == 0 }
-            evens.zip(odds).random()
-        }.also {
-            db.getMap<Long, Boolean>("CLOSEST")[chatId] = !closest
         }
     }
 
