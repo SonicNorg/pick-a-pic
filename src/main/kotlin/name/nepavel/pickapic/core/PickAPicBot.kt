@@ -59,6 +59,30 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
 
     override fun creatorId(): Int = 141897089
 
+    fun start(): Ability {
+        return Ability.builder()
+            .name("start")
+            .locality(Locality.USER)
+            .privacy(Privacy.PUBLIC)
+            .action { ctx ->
+                val started = VotingRepository.list(State.STARTED).singleOrNull()
+                if (started != null) {
+                    UserCurrentVoteRepository.save(ctx.chatId(), started.name)
+                    execute(
+                        SendMessage(ctx.chatId(), "Hi there! Welcome to $started! Choose wisely!")
+                            .setReplyMarkup(votingButtons)
+                    )
+                    sendPicsToVote(ctx.chatId(), started.name)
+                } else {
+                    execute(
+                        SendMessage(ctx.chatId(), "Hi there! Please choose a started voting and start picking pics!")
+                            .setReplyMarkup(votingButtons)
+                    )
+                }
+            }
+            .build()
+    }
+
     fun clear(): Ability {
         return Ability.builder()
             .name("clear")
