@@ -49,6 +49,19 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
 
     override fun creatorId(): Int = 141897089
 
+    fun debug(): Ability {
+        return Ability.builder()
+            .name("debug")
+            .locality(Locality.USER)
+            .privacy(Privacy.ADMIN)
+            .action { ctx ->
+                val debugMode = db.getVar<Boolean>("DEBUG")
+                debugMode.set(!debugMode.get())
+                silent.send("Debug mode is now ${debugMode.get()}", ctx.chatId())
+            }
+            .build()
+    }
+
     fun start(): Ability {
         return Ability.builder()
             .name("start")
@@ -253,9 +266,21 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                     loser.rank,
                                     calcCoefficient(Config.config.logic.coefficient, FinishesRepository.get(currentVoting.name)).toInt()
                                 )
+                                if (db.getVar<Boolean>("DEBUG").get()) {
+                                    execute(
+                                        AnswerCallbackQuery()
+                                            .setCallbackQueryId(callbackQuery.id)
+                                            .setShowAlert(true)
+                                            .setText(
+                                                "Winner rank: ${winner.rank} -> $winnerRating\n" +
+                                                        "Loser rank: ${loser.rank} -> $loserRating"
+                                            )
+                                    )
+                                } else {
+                                    execute(AnswerCallbackQuery().setCallbackQueryId(callbackQuery.id).setText("Your voice saved!"))
+                                }
                                 PicRepository.save(currentVoting.name, winner.copy(rank = winnerRating.toFloat()))
                                 PicRepository.save(currentVoting.name, loser.copy(rank = loserRating.toFloat()))
-                                execute(AnswerCallbackQuery().setCallbackQueryId(callbackQuery.id).setText("Your voice saved!"))
                                 sendPicsToVote(ctx.chatId(), currentVoting.name)
                             }
                         }
