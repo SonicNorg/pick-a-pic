@@ -2,13 +2,11 @@ package name.nepavel.pickapic.core
 
 import name.nepavel.pickapic.Config
 import name.nepavel.pickapic.GFG.eloRating
+import name.nepavel.pickapic.calcCoefficient
 import name.nepavel.pickapic.domain.Pic
 import name.nepavel.pickapic.domain.State
 import name.nepavel.pickapic.domain.Voting
-import name.nepavel.pickapic.repository.PicRepository
-import name.nepavel.pickapic.repository.UserCurrentVoteRepository
-import name.nepavel.pickapic.repository.ViewsRepository
-import name.nepavel.pickapic.repository.VotingRepository
+import name.nepavel.pickapic.repository.*
 import org.apache.logging.log4j.LogManager
 import org.telegram.abilitybots.api.bot.AbilityBot
 import org.telegram.abilitybots.api.bot.BaseAbilityBot
@@ -48,14 +46,6 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                 }
             ).setResizeKeyboard(true)
         }
-
-    init {
-        PicRepository.db = db
-        VotingRepository.db = db
-        UserCurrentVoteRepository.db = db
-        ViewsRepository.db = db
-        PairManager.db = db
-    }
 
     override fun creatorId(): Int = 141897089
 
@@ -166,6 +156,43 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
             .build()
     }
 
+    fun coef(): Ability {
+        return Ability.builder()
+            .name("coef")
+            .info("Set new base for dynamic Elo rating")
+            .locality(Locality.USER)
+            .input(1)
+            .privacy(Privacy.ADMIN)
+            .action { ctx ->
+                val newCoef = ctx.firstArg().toInt()
+                silent.send("Coefficient base changed from ${Config.config.logic.coefficient} to $newCoef", ctx.chatId())
+                Config.config.logic.coefficient = newCoef
+            }
+            .build()
+    }
+
+    fun info(): Ability {
+        return Ability.builder()
+            .name("info")
+            .info("Show current finishes count and current ELO value")
+            .locality(Locality.USER)
+            .privacy(Privacy.ADMIN)
+            .action { ctx ->
+                if (UserCurrentVoteRepository.get(ctx.chatId()) == null) {
+                    silent.send("Choose voting first!", ctx.chatId())
+                    return@action
+                }
+                val finishes = FinishesRepository.get(UserCurrentVoteRepository.get(ctx.chatId())!!)
+                silent.send(
+                    "Current base: ${Config.config.logic.coefficient}\nCurrent finishes: $finishes\nCurrent ELO: ${calcCoefficient(
+                        Config.config.logic.coefficient,
+                        finishes
+                    )}",
+                    ctx.chatId())
+            }
+            .build()
+    }
+
     fun default(): Ability {
         return Ability.builder()
             .name(BaseAbilityBot.DEFAULT)
@@ -224,7 +251,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                 val (winnerRating, loserRating) = eloRating(
                                     winner.rank,
                                     loser.rank,
-                                    Config.config.logic.coefficient
+                                    calcCoefficient(Config.config.logic.coefficient, FinishesRepository.get(currentVoting.name)).toInt()
                                 )
                                 PicRepository.save(currentVoting.name, winner.copy(rank = winnerRating.toFloat()))
                                 PicRepository.save(currentVoting.name, loser.copy(rank = loserRating.toFloat()))
@@ -322,6 +349,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
     private fun sendPicsToVote(chatId: Long, currentVoting: String) {
         val nextPair = PairManager.getNextPair(chatId, currentVoting)
         if (nextPair == null) {
+            FinishesRepository.increment(currentVoting)
             execute(
                 SendMessage(chatId, "You are done! Thank you!")
                     .setReplyMarkup(

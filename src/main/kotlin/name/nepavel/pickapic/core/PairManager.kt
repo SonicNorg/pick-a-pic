@@ -1,22 +1,21 @@
 package name.nepavel.pickapic.core
 
 import name.nepavel.pickapic.domain.Pic
+import name.nepavel.pickapic.repository.DbHelper
 import name.nepavel.pickapic.repository.PicRepository
 import name.nepavel.pickapic.repository.ViewsRepository
-import org.telegram.abilitybots.api.db.DBContext
 
 object PairManager {
-    lateinit var db: DBContext
 
     fun getNextPair(chatId: Long, votingName: String): Pair<Pic, Pic>? {
-        val closest = db.getMap<Long, Boolean>("CLOSEST").getOrDefault(chatId, false)
+        val closest = DbHelper.db.getMap<Long, Boolean>("CLOSEST").getOrDefault(chatId, false)
         val list = getList(votingName, chatId, closest)
         return if (list.isEmpty()) {
             null
         } else {
             list.random()
         }?.let {
-            db.getMap<Long, Boolean>("CLOSEST")[chatId] = !closest
+            DbHelper.db.getMap<Long, Boolean>("CLOSEST")[chatId] = !closest
             ViewsRepository.increment(chatId, votingName, it.first.file_id)
             ViewsRepository.increment(chatId, votingName, it.second.file_id)
             it

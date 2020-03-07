@@ -16,7 +16,7 @@ object Config {
 
 data class Database(val type: String, val host: String, val port: Int, val db: String, val schema: String, val user: String, val pass: Masked, val tempDbPath: String)
 data class Service(val botName: String, val botToken: String)
-data class Logic(val coefficient: Int)
+data class Logic(var coefficient: Int)
 data class VersionInfo(val version: String, val buildDate: LocalDateTime)
 
 data class BotConfig(val database:Database, val service: Service, val logic: Logic)
