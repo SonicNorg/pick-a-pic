@@ -30,7 +30,6 @@ import java.io.InputStream
 import java.time.LocalDate
 import javax.imageio.ImageIO
 import kotlin.math.max
-import kotlin.math.round
 
 
 class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, botUsername) {
@@ -46,6 +45,11 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                 }
             ).setResizeKeyboard(true)
         }
+
+    init {
+        DbHelper.db = db
+        db.getVar<Boolean>("DEBUG").set(false)
+    }
 
     override fun creatorId(): Int = 141897089
 
@@ -113,6 +117,16 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
             .build()
     }
 
+    fun usersCount(): Ability {
+        return Ability.builder()
+            .name("users")
+            .locality(Locality.USER)
+            .privacy(Privacy.ADMIN)
+            .action {
+                silent.send("Total users count: ${users().size}", it.chatId())
+            }.build()
+    }
+
     fun ranks(): Ability {
         return Ability.builder()
             .name("ranks")
@@ -128,17 +142,21 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                     ) {
                         silent.send("Voting $chosen is in progress, ranks are unavailable.", ctx.chatId())
                     } else {
-                        PicRepository.list(chosen).sortedByDescending { it.rank }.map {
-                            InputMediaPhoto(it.file_id, "%.1f".format(it.rank))
-                        }.chunked(8).forEach {
-                            execute(SendMediaGroup(ctx.chatId(), it))
-                        }
+                        sendRanks(chosen, ctx.chatId())
                     }
                 } else {
                     silent.send("Choose voting first!", ctx.chatId())
                 }
             }
             .build()
+    }
+
+    private fun sendRanks(voting: String, chatId: Long?) {
+        PicRepository.list(voting).sortedByDescending { it.rank }.map {
+            InputMediaPhoto(it.file_id, "%.1f".format(it.rank))
+        }.chunked(8).forEach {
+            execute(SendMediaGroup(chatId, it))
+        }
     }
 
     fun create(): Ability {
@@ -272,8 +290,8 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                             .setCallbackQueryId(callbackQuery.id)
                                             .setShowAlert(true)
                                             .setText(
-                                                "Winner rank: ${winner.rank} -> $winnerRating\n" +
-                                                        "Loser rank: ${loser.rank} -> $loserRating"
+                                                "Winner rank: ${"%.2f".format(winner.rank)} -> ${"%.2f".format(winnerRating)}\n" +
+                                                        "Loser rank: ${"%.2f".format(loser.rank)} -> ${"%.2f".format(loserRating)}"
                                             )
                                     )
                                 } else {
@@ -298,6 +316,14 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                         "Voting '$closed' closed, results become available for all."
                                     ).setReplyMarkup(votingButtons)
                                 )
+                                users().keys.forEach { id ->
+                                    try {
+                                        silent.send("Voting $closed, here are the final ranks!", id.toLong())
+                                        sendRanks(closed.name, id.toLong())
+                                    } catch (e: Exception) {
+                                        log.warn("Failed to send ranks on vote closed to {}", id, e)
+                                    }
+                                }
                             }
                             text.startsWith("Choose") -> {
                                 val chosenVoting = VotingRepository.get(text.split(" ", limit = 3)[1])

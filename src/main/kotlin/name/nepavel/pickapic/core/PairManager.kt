@@ -3,6 +3,7 @@ package name.nepavel.pickapic.core
 import name.nepavel.pickapic.domain.Pic
 import name.nepavel.pickapic.repository.PicRepository
 import name.nepavel.pickapic.repository.ViewsRepository
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
@@ -39,8 +40,8 @@ object PairManager {
                 val rndLeftIndex = Random.nextInt(list.size / 3 - 1, 2 * list.size / 3 + 1)
                 val left = list[rndLeftIndex]
                 val chooseRightFrom = list.subList(
-                    max(0, rndLeftIndex - list.size / 10),
-                    min(list.size - 1, rndLeftIndex + list.size / 10)
+                    max(0, rndLeftIndex - ceil(list.size / 10.0).toInt()),
+                    min(list.size, rndLeftIndex + ceil(list.size / 10.0).toInt())
                 )
                 var right: Pic = chooseRightFrom.random()
                 while(left == right) {
