@@ -17,16 +17,16 @@ fun main() {
         ConfigLoader().withDecoder(LocalTimeDecoder()).loadConfigOrThrow(Paths.get(getenv))
     } catch (e: Exception) {
         logger.error("Failed to load config from ENV 'config' ($getenv)!", e)
-        logger.info("Using defauld config")
+        logger.info("Using default config")
         ConfigLoader().withDecoder(LocalTimeDecoder()).loadConfigOrThrow("/config/config.yaml")
     }
     Config.versionInfo = ConfigLoader().loadConfigOrThrow("/versionInfo.yaml")
     logger.info("Config loaded: {}", Config.config)
-    logger.info("Starting bot...")
+    logger.info("Starting bot, version ${Config.versionInfo}")
     ApiContextInitializer.init()
     val botsApi = TelegramBotsApi()
     try {
-        botsApi.registerBot(PickAPicBot(Config.config.service.botName, Config.config.service.botToken.value))
+        botsApi.registerBot(PickAPicBot(Config.config.service.botName, Config.config.service.botToken.value, org.telegram.abilitybots.api.db.MapDBContext.offlineInstance(Config.config.service.dbPath)))
     } catch (e: TelegramApiException) {
         logger.error("Failed to start", e)
         throw e

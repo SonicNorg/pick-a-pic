@@ -1,0 +1,23 @@
+language: java
+sudo: true
+cache:
+  directories:
+    - $HOME/.gradle/caches/
+    - $HOME/.gradle/wrapper/
+jdk:
+  - openjdk11
+services:
+  - docker
+before_install:
+  - chmod +x ./gradlew
+install:
+  - ./gradlew assemble shadowJar
+before_deploy:
+  - docker build --force-rm -t $DOCKER_USERNAME/pick-a-pic:"`echo $TRAVIS_BRANCH | tr / .`" --label pick-a-pic . && docker images
+  - chmod +x ./dock-push.sh
+deploy:
+  on:
+    all_branches: true
+  skip_cleanup: true
+  provider: script
+  script: bash ./dock-push.sh

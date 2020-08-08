@@ -8,7 +8,7 @@
 logs/
 app/logs
 
-pick_a_pic_bot
+pick_a_pic_bot*
 
 *.db
 

@@ -4,6 +4,7 @@ service:
   botName: your_bot_name
   #Токен бота
   botToken: your_bot_token
+  dbPath: ./pick_a_pic_bot.db
 #Настройки логики
 logic:
   #Коэффициент изменения рейтинга ЭЛО: X/sqrt(completed), где X - этот параметр, completed - число полностью завершенных голосований

@@ -10,6 +10,7 @@ import name.nepavel.pickapic.repository.*
 import org.apache.logging.log4j.LogManager
 import org.telegram.abilitybots.api.bot.AbilityBot
 import org.telegram.abilitybots.api.bot.BaseAbilityBot
+import org.telegram.abilitybots.api.db.DBContext
 import org.telegram.abilitybots.api.objects.Ability
 import org.telegram.abilitybots.api.objects.Locality
 import org.telegram.abilitybots.api.objects.Privacy
@@ -33,8 +34,12 @@ import kotlin.math.max
 
 private const val CHOOSE_VOTING_FIRST = "Choose voting first!"
 
-class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, botUsername) {
-    private val log = LogManager.getLogger()
+class PickAPicBot(
+    botUsername: String,
+    botToken: String,
+    offlineInstance: DBContext
+) : AbilityBot(botToken, botUsername, offlineInstance) {
+    private val log = LogManager.getLogger("name.nepavel.pickapic.core.PickAPicBot")
 
     private val votingButtons: ReplyKeyboardMarkup
         get() {
