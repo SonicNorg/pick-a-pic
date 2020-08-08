@@ -18,7 +18,7 @@ object GFG {
     fun eloRating(
         winner: Float,
         loser: Float,
-        K: Int
+        coef: Int
     ): Pair<Double, Double> {
         // To calculate the Winning
 // Probability of Player B
@@ -26,8 +26,8 @@ object GFG {
         // To calculate the Winning
 // Probability of Player A
         val pa = probability(loser, winner)
-        val ra = winner + K * (1 - pa)
-        val rb = loser + K * (0 - pb)
+        val ra = winner + coef * (1 - pa)
+        val rb = loser + coef * (0 - pb)
         return Pair(ra.toDouble(), rb.toDouble())
     }
 }
