@@ -8,6 +8,8 @@
 logs/
 app/logs
 
+pick_a_pic_bot*
+
 *.db
 
 # BlueJ files

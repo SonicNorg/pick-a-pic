@@ -10,6 +10,7 @@ import name.nepavel.pickapic.repository.*
 import org.apache.logging.log4j.LogManager
 import org.telegram.abilitybots.api.bot.AbilityBot
 import org.telegram.abilitybots.api.bot.BaseAbilityBot
+import org.telegram.abilitybots.api.db.DBContext
 import org.telegram.abilitybots.api.objects.Ability
 import org.telegram.abilitybots.api.objects.Locality
 import org.telegram.abilitybots.api.objects.Privacy
@@ -31,9 +32,14 @@ import java.time.LocalDate
 import javax.imageio.ImageIO
 import kotlin.math.max
 
+private const val CHOOSE_VOTING_FIRST = "Choose voting first!"
 
-class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, botUsername) {
-    private val log = LogManager.getLogger()
+class PickAPicBot(
+    botUsername: String,
+    botToken: String,
+    offlineInstance: DBContext
+) : AbilityBot(botToken, botUsername, offlineInstance) {
+    private val log = LogManager.getLogger("name.nepavel.pickapic.core.PickAPicBot")
 
     private val votingButtons: ReplyKeyboardMarkup
         get() {
@@ -51,7 +57,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
         db.getVar<Boolean>("DEBUG").set(false)
     }
 
-    override fun creatorId(): Int = 141897089
+    override fun creatorId(): Int = Config.config.service.botOwner
 
     fun debug(): Ability {
         return Ability.builder()
@@ -61,7 +67,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
             .action { ctx ->
                 val debugMode = db.getVar<Boolean>("DEBUG")
                 debugMode.set(!debugMode.get())
-                silent.send("Debug mode is now ${debugMode.get()}", ctx.chatId())
+                silent.send("Debug mode is now ${ if(debugMode.get()) "ON" else "OFF"}", ctx.chatId())
             }
             .build()
     }
@@ -104,13 +110,18 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
             .name("help")
             .info("help")
             .locality(Locality.USER)
-            .privacy(Privacy.PUBLIC)
+            .privacy(Privacy.ADMIN)
             .action { ctx ->
                 execute(
                     SendMessage(
                         ctx.chatId(),
                         """/create NAME 2020-01-01 2020-01-18 - ${create().info()}
-/ranks - ${ranks().info()}""".trimIndent()
+/clear - totally clears database (CANNOT BE UNDONE)
+/ranks - ${ranks().info()}
+/coef X - ${coef().info()}
+/info - ${info().info()}
+/usersCount - ${usersCount().info()}
+/debug - switch debug mode on/off""".trimIndent()
                     ).setReplyMarkup(votingButtons)
                 )
             }
@@ -145,7 +156,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                         sendRanks(chosen, ctx.chatId())
                     }
                 } else {
-                    silent.send("Choose voting first!", ctx.chatId())
+                    silent.send(CHOOSE_VOTING_FIRST, ctx.chatId())
                 }
             }
             .build()
@@ -196,8 +207,11 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
             .privacy(Privacy.ADMIN)
             .action { ctx ->
                 val newCoef = ctx.firstArg().toInt()
-                silent.send("Coefficient base changed from ${Config.config.logic.coefficient} to $newCoef", ctx.chatId())
                 Config.config.logic.coefficient = newCoef
+                silent.send(
+                    "Coefficient base changed from ${Config.config.logic.coefficient} to $newCoef",
+                    ctx.chatId()
+                )
             }
             .build()
     }
@@ -205,12 +219,12 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
     fun info(): Ability {
         return Ability.builder()
             .name("info")
-            .info("Show current finishes count and current ELO value")
+            .info("Show completed votings count and current ELO value")
             .locality(Locality.USER)
             .privacy(Privacy.ADMIN)
             .action { ctx ->
                 if (UserCurrentVoteRepository.get(ctx.chatId()) == null) {
-                    silent.send("Choose voting first!", ctx.chatId())
+                    silent.send(CHOOSE_VOTING_FIRST, ctx.chatId())
                     return@action
                 }
                 val finishes = FinishesRepository.get(UserCurrentVoteRepository.get(ctx.chatId())!!)
@@ -219,7 +233,8 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                         Config.config.logic.coefficient,
                         finishes
                     )}",
-                    ctx.chatId())
+                    ctx.chatId()
+                )
             }
             .build()
     }
@@ -266,7 +281,7 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                             currentVoting == null -> execute(
                                 SendMessage(
                                     ctx.chatId(),
-                                    "Choose voting first!"
+                                    CHOOSE_VOTING_FIRST
                                 ).setReplyMarkup(votingButtons)
                             )
                             currentVoting.state != State.STARTED -> execute(
@@ -282,7 +297,10 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                 val (winnerRating, loserRating) = eloRating(
                                     winner.rank,
                                     loser.rank,
-                                    calcCoefficient(Config.config.logic.coefficient, FinishesRepository.get(currentVoting.name)).toInt()
+                                    calcCoefficient(
+                                        Config.config.logic.coefficient,
+                                        FinishesRepository.get(currentVoting.name)
+                                    ).toInt()
                                 )
                                 if (db.getVar<Boolean>("DEBUG").get()) {
                                     execute(
@@ -290,12 +308,19 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                             .setCallbackQueryId(callbackQuery.id)
                                             .setShowAlert(true)
                                             .setText(
-                                                "Winner rank: ${"%.2f".format(winner.rank)} -> ${"%.2f".format(winnerRating)}\n" +
-                                                        "Loser rank: ${"%.2f".format(loser.rank)} -> ${"%.2f".format(loserRating)}"
+                                                "Winner rank: ${"%.2f".format(winner.rank)} -> ${"%.2f".format(
+                                                    winnerRating
+                                                )}\n" +
+                                                        "Loser rank: ${"%.2f".format(loser.rank)} -> ${"%.2f".format(
+                                                            loserRating
+                                                        )}"
                                             )
                                     )
                                 } else {
-                                    execute(AnswerCallbackQuery().setCallbackQueryId(callbackQuery.id).setText("Your voice saved!"))
+                                    execute(
+                                        AnswerCallbackQuery().setCallbackQueryId(callbackQuery.id)
+                                            .setText("Your voice saved!")
+                                    )
                                 }
                                 PicRepository.save(currentVoting.name, winner.copy(rank = winnerRating.toFloat()))
                                 PicRepository.save(currentVoting.name, loser.copy(rank = loserRating.toFloat()))
@@ -345,7 +370,8 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                                                     KeyboardRow().also { it.add("Start voting") })
                                             } else if ((admins().contains(ctx.chatId().toInt())
                                                         || creatorId() == ctx.chatId().toInt())
-                                                && chosenVoting.state == State.STARTED) {
+                                                && chosenVoting.state == State.STARTED
+                                            ) {
                                                 it.keyboard.add(
                                                     0,
                                                     KeyboardRow().also { it.add("Close voting") })
@@ -359,12 +385,14 @@ class PickAPicBot(botUsername: String, botToken: String) : AbilityBot(botToken, 
                             text == "Start voting" -> {
                                 if (currentVoting == null) {
                                     execute(
-                                        SendMessage(ctx.chatId(), "Choose voting first!").setReplyMarkup(
+                                        SendMessage(ctx.chatId(), CHOOSE_VOTING_FIRST).setReplyMarkup(
                                             votingButtons
                                         )
                                     )
                                 } else {
-                                    if (admins().contains(ctx.chatId().toInt()) || ctx.chatId().toInt() == creatorId()) {
+                                    if (admins().contains(ctx.chatId().toInt()) || ctx.chatId()
+                                            .toInt() == creatorId()
+                                    ) {
                                         val started = currentVoting.copy(state = State.STARTED)
                                         VotingRepository.save(started)
                                         if (currentVoting.state == State.CREATED) {
