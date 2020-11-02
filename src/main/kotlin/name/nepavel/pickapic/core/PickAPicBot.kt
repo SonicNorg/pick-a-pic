@@ -118,9 +118,10 @@ class PickAPicBot(
                         """/create NAME 2020-01-01 2020-01-18 - ${create().info()}
 /clear - totally clears database (CANNOT BE UNDONE)
 /ranks - ${ranks().info()}
-/coef X - ${coef().info()}
+/coef [X] - ${coef().info()}
+/views [X] - ${viewLimit().info()}
 /info - ${info().info()}
-/usersCount - ${usersCount().info()}
+/users - ${usersCount().info()}
 /debug - switch debug mode on/off""".trimIndent()
                     ).setReplyMarkup(votingButtons)
                 )
@@ -131,6 +132,7 @@ class PickAPicBot(
     fun usersCount(): Ability {
         return Ability.builder()
             .name("users")
+            .info("See users count")
             .locality(Locality.USER)
             .privacy(Privacy.ADMIN)
             .action {
@@ -141,7 +143,7 @@ class PickAPicBot(
     fun ranks(): Ability {
         return Ability.builder()
             .name("ranks")
-            .info("see pics ranks")
+            .info("See pics ranks")
             .locality(Locality.USER)
             .privacy(Privacy.PUBLIC)
             .action { ctx ->
@@ -201,17 +203,47 @@ class PickAPicBot(
     fun coef(): Ability {
         return Ability.builder()
             .name("coef")
-            .info("Set new base for dynamic Elo rating")
+            .info("Get (no args) or set (one arg) new base for dynamic Elo rating")
             .locality(Locality.USER)
-            .input(1)
             .privacy(Privacy.ADMIN)
             .action { ctx ->
-                val newCoef = ctx.firstArg().toInt()
-                Config.config.logic.coefficient = newCoef
-                silent.send(
-                    "Coefficient base changed from ${Config.config.logic.coefficient} to $newCoef",
-                    ctx.chatId()
-                )
+                if (ctx.arguments().isNullOrEmpty()) {
+                    silent.send(
+                        "Coefficient base is ${Config.config.logic.coefficient}",
+                        ctx.chatId()
+                    )
+                } else {
+                    val newCoef = ctx.firstArg().toInt()
+                    silent.send(
+                        "Coefficient base changed from ${Config.config.logic.coefficient} to $newCoef",
+                        ctx.chatId()
+                    )
+                    Config.config.logic.coefficient = newCoef
+                }
+            }
+            .build()
+    }
+
+    fun viewLimit(): Ability {
+        return Ability.builder()
+            .name("views")
+            .info("Get (no args) or set (one arg) new view limit")
+            .locality(Locality.USER)
+            .privacy(Privacy.ADMIN)
+            .action { ctx ->
+                if (ctx.arguments().isNullOrEmpty()) {
+                    silent.send(
+                        "Views limit is ${Config.config.logic.maxEachShows}",
+                        ctx.chatId()
+                    )
+                } else {
+                    val maxEachShows = ctx.firstArg().toInt()
+                    silent.send(
+                        "Views limit changed from ${Config.config.logic.maxEachShows} to $maxEachShows",
+                        ctx.chatId()
+                    )
+                    Config.config.logic.maxEachShows = maxEachShows
+                }
             }
             .build()
     }
