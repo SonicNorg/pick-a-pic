@@ -9,3 +9,4 @@ service:
 logic:
   #Коэффициент изменения рейтинга ЭЛО: X/sqrt(completed), где X - этот параметр, completed - число полностью завершенных голосований
   coefficient: 100
+  maxEachShows: 2

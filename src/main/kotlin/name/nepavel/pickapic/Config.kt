@@ -15,7 +15,7 @@ object Config {
 }
 
 data class Service(val botOwner: Int, val botName: String, val botToken: Masked, val dbPath: String)
-data class Logic(var coefficient: Int)
+data class Logic(var coefficient: Int, var maxEachShows: Int)
 data class VersionInfo(val version: String, val buildDate: LocalDateTime)
 
 data class BotConfig(val service: Service, val logic: Logic)
