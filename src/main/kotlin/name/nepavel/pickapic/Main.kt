@@ -26,7 +26,8 @@ fun main() {
     ApiContextInitializer.init()
     val botsApi = TelegramBotsApi()
     try {
-        botsApi.registerBot(PickAPicBot(Config.config.service.botName, Config.config.service.botToken.value, org.telegram.abilitybots.api.db.MapDBContext.offlineInstance(Config.config.service.dbPath)))
+        botsApi.registerBot(PickAPicBot(Config.config.service.botName, Config.config.service.botToken.value, org.telegram.abilitybots.api.db.MapDBContext.onlineInstance(Config.config.service.dbPath)))
+        logger.info("Database initialized at ${Config.config.service.dbPath}")
     } catch (e: TelegramApiException) {
         logger.error("Failed to start", e)
         throw e
