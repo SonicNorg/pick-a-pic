@@ -1,5 +1,6 @@
 package name.nepavel.pickapic.repository
 
+import arrow.core.firstOrNone
 import name.nepavel.pickapic.domain.State
 import name.nepavel.pickapic.domain.Voting
 
@@ -24,7 +25,7 @@ object VotingRepository {
         }
     }
 
-    fun get(voting: String): Voting {
-        return DbHelper.db.getSet<Voting>(VOTING).first { it.name == voting }
+    fun get(voting: String): Voting? {
+        return DbHelper.db.getSet<Voting>(VOTING).firstOrNull { it.name == voting }
     }
 }

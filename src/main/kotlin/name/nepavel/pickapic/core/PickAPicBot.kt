@@ -21,7 +21,9 @@ import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRemove
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException
@@ -41,9 +43,9 @@ class PickAPicBot(
 ) : AbilityBot(botToken, botUsername, offlineInstance) {
     private val log = LogManager.getLogger("name.nepavel.pickapic.core.PickAPicBot")
 
-    private val votingButtons: ReplyKeyboardMarkup
+    private val votingButtons: ReplyKeyboard
         get() {
-            return ReplyKeyboardMarkup(
+            return if (VotingRepository.list().isEmpty()) ReplyKeyboardRemove() else ReplyKeyboardMarkup(
                 VotingRepository.list().chunked(2) { chunk ->
                     KeyboardRow().apply {
                         chunk.forEach { add("Choose ${it.name} ${it.state}") }
@@ -67,7 +69,7 @@ class PickAPicBot(
             .action { ctx ->
                 val debugMode = db.getVar<Boolean>("DEBUG")
                 debugMode.set(!debugMode.get())
-                silent.send("Debug mode is now ${ if(debugMode.get()) "ON" else "OFF"}", ctx.chatId())
+                silent.send("Debug mode is now ${if (debugMode.get()) "ON" else "OFF"}", ctx.chatId())
             }
             .build()
     }
@@ -86,9 +88,14 @@ class PickAPicBot(
                             .setReplyMarkup(votingButtons)
                     )
                     sendPicsToVote(ctx.chatId(), started.name)
-                } else {
+                } else if (VotingRepository.list().isNotEmpty()) {
                     execute(
                         SendMessage(ctx.chatId(), "Hi there! Please choose a started voting and start picking pics!")
+                            .setReplyMarkup(votingButtons)
+                    )
+                } else {
+                    execute(
+                        SendMessage(ctx.chatId(), "Hi there! No voting is created. Wait until admins do their job!")
                             .setReplyMarkup(votingButtons)
                     )
                 }
@@ -149,11 +156,13 @@ class PickAPicBot(
             .action { ctx ->
                 val chosen = UserCurrentVoteRepository.get(ctx.chatId())
                 if (chosen != null) {
-                    if (!(VotingRepository.get(chosen).state == State.CLOSED
+                    if (!(VotingRepository.get(chosen)?.state == State.CLOSED
                                 || admins().contains(ctx.chatId().toInt())
                                 || creatorId() == ctx.chatId().toInt())
                     ) {
                         silent.send("Voting $chosen is in progress, ranks are unavailable.", ctx.chatId())
+                    } else if (VotingRepository.get(chosen) == null) {
+                        silent.send("Voting $chosen not found! We are very sorry :(", ctx.chatId())
                     } else {
                         sendRanks(chosen, ctx.chatId())
                     }
@@ -191,7 +200,7 @@ class PickAPicBot(
                 execute(
                     SendMessage(ctx.chatId(), "You have just created '${ctx.firstArg()}' voting. Add pics now!")
                         .setReplyMarkup(votingButtons.also {
-                            it.keyboard.add(
+                            (it as ReplyKeyboardMarkup).keyboard.add(
                                 0,
                                 KeyboardRow().also { it.add("Start voting") })
                         })
@@ -261,10 +270,12 @@ class PickAPicBot(
                 }
                 val finishes = FinishesRepository.get(UserCurrentVoteRepository.get(ctx.chatId())!!)
                 silent.send(
-                    "Current base: ${Config.config.logic.coefficient}\nCurrent finishes: $finishes\nCurrent ELO: ${calcCoefficient(
-                        Config.config.logic.coefficient,
-                        finishes
-                    )}",
+                    "Current base: ${Config.config.logic.coefficient}\nCurrent finishes: $finishes\nCurrent ELO: ${
+                        calcCoefficient(
+                            Config.config.logic.coefficient,
+                            finishes
+                        )
+                    }",
                     ctx.chatId()
                 )
             }
@@ -340,12 +351,16 @@ class PickAPicBot(
                                             .setCallbackQueryId(callbackQuery.id)
                                             .setShowAlert(true)
                                             .setText(
-                                                "Winner rank: ${"%.2f".format(winner.rank)} -> ${"%.2f".format(
-                                                    winnerRating
-                                                )}\n" +
-                                                        "Loser rank: ${"%.2f".format(loser.rank)} -> ${"%.2f".format(
-                                                            loserRating
-                                                        )}"
+                                                "Winner rank: ${"%.2f".format(winner.rank)} -> ${
+                                                    "%.2f".format(
+                                                        winnerRating
+                                                    )
+                                                }\n" +
+                                                        "Loser rank: ${"%.2f".format(loser.rank)} -> ${
+                                                            "%.2f".format(
+                                                                loserRating
+                                                            )
+                                                        }"
                                             )
                                     )
                                 } else {
@@ -384,31 +399,40 @@ class PickAPicBot(
                             }
                             text.startsWith("Choose") -> {
                                 val chosenVoting = VotingRepository.get(text.split(" ", limit = 3)[1])
+                                if (chosenVoting == null) {
+                                    execute(
+                                        SendMessage(ctx.chatId(), "Voting $currentVoting not found! We are very sorry :(").setReplyMarkup(
+                                            votingButtons
+                                        )
+                                    )
+                                    return@action
+                                }
                                 UserCurrentVoteRepository.save(ctx.chatId(), chosenVoting.name)
                                 execute(
                                     SendMessage(
                                         ctx.chatId(),
-                                        "You have chosen '$chosenVoting' which contains ${PicRepository.list(
-                                            chosenVoting.name
-                                        ).size} pics. ${if (chosenVoting.state == State.STARTED) "Go on" else "See /ranks"}!"
-                                    )
-                                        .setReplyMarkup(votingButtons.also {
-                                            if ((admins().contains(ctx.chatId().toInt())
-                                                        || creatorId() == ctx.chatId().toInt())
-                                                && chosenVoting.state == State.CREATED
-                                            ) {
-                                                it.keyboard.add(
-                                                    0,
-                                                    KeyboardRow().also { it.add("Start voting") })
-                                            } else if ((admins().contains(ctx.chatId().toInt())
-                                                        || creatorId() == ctx.chatId().toInt())
-                                                && chosenVoting.state == State.STARTED
-                                            ) {
-                                                it.keyboard.add(
-                                                    0,
-                                                    KeyboardRow().also { it.add("Close voting") })
-                                            }
-                                        })
+                                        "You have chosen '$chosenVoting' which contains ${
+                                            PicRepository.list(
+                                                chosenVoting.name
+                                            ).size
+                                        } pics. ${if (chosenVoting.state == State.STARTED) "Go on" else "See /ranks"}!"
+                                    ).setReplyMarkup(votingButtons.also {
+                                        if ((admins().contains(ctx.chatId().toInt())
+                                                    || creatorId() == ctx.chatId().toInt())
+                                            && chosenVoting.state == State.CREATED
+                                        ) {
+                                            (it as ReplyKeyboardMarkup).keyboard.add(
+                                                0,
+                                                KeyboardRow().also { it.add("Start voting") })
+                                        } else if ((admins().contains(ctx.chatId().toInt())
+                                                    || creatorId() == ctx.chatId().toInt())
+                                            && chosenVoting.state == State.STARTED
+                                        ) {
+                                            (it as ReplyKeyboardMarkup).keyboard.add(
+                                                0,
+                                                KeyboardRow().also { it.add("Close voting") })
+                                        }
+                                    })
                                 )
                                 if (chosenVoting.state == State.STARTED) {
                                     sendPicsToVote(ctx.chatId(), chosenVoting.name)
@@ -432,7 +456,7 @@ class PickAPicBot(
                                                 SendMessage(ctx.chatId(), "Hey, $started! Come and make your choice!")
                                                     .setReplyMarkup(
                                                         votingButtons.apply {
-                                                            this.keyboard.add(
+                                                            (this as ReplyKeyboardMarkup).keyboard.add(
                                                                 0,
                                                                 KeyboardRow().apply { add("Close voting $started") })
                                                         }
@@ -466,12 +490,12 @@ class PickAPicBot(
                     .setReplyMarkup(
                         votingButtons.also {
                             if (admins().contains(chatId.toInt()) || creatorId() == chatId.toInt()) {
-                                if (VotingRepository.get(currentVoting).state == State.STARTED) {
-                                    it.keyboard.add(
+                                if (VotingRepository.get(currentVoting)?.state == State.STARTED) {
+                                    (it as ReplyKeyboardMarkup).keyboard.add(
                                         0,
                                         KeyboardRow().also { it.add("Close voting") })
-                                } else if (VotingRepository.get(currentVoting).state == State.CREATED) {
-                                    it.keyboard.add(
+                                } else if (VotingRepository.get(currentVoting)?.state == State.CREATED) {
+                                    (it as ReplyKeyboardMarkup).keyboard.add(
                                         0,
                                         KeyboardRow().also { it.add("Start voting") })
                                 }
