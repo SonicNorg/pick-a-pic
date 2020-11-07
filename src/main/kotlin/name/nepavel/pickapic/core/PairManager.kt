@@ -48,9 +48,9 @@ object PairManager {
             list.size > 6 -> {
                 val rndLeftIndex = Random.nextInt(list.size / 3 - 1, 2 * list.size / 3 + 1)
                 val left = list[rndLeftIndex]
-                val chooseRightFrom = list.subList(
-                    max(0, rndLeftIndex - ceil(list.size / 10.0).toInt()),
-                    min(list.size, rndLeftIndex + ceil(list.size / 10.0).toInt())
+                val chooseRightFrom = list.sortedBy { it.rank }.subList(
+                    max(0, rndLeftIndex - ceil(list.size / 3.33).toInt()),
+                    min(list.size, rndLeftIndex + ceil(list.size / 3.33).toInt())
                 )
                 var right: Pic = chooseRightFrom.random()
                 while (left == right) {
